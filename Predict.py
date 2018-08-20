@@ -46,32 +46,28 @@ def getDailyReturnData(assets, start_date, end_date, **kwargs):
     db.close()
     return return_data
 
-#取指数日收盘价
-def getDailyIndexData(assets, start_date, end_date, **kwargs):
+#取指数日线级别数据，包括收盘价：CLOSE_INDEX，最高价：HIGHEST_INDEX，最低价：LOWEST_INDEX，涨跌幅：CHG_PCT
+def getDailyIndexData(assets, start_date, end_date, data_type):
     # 连接通联mysql数据库
     db = pymysql.connect("172.16.125.111", "reader", "reader", "datayesdb", 3313)
     cursor = db.cursor()
 
-    risk_assets = assets.copy()
-    if "CASH" in risk_assets:
-        risk_assets.remove("CASH")
-
-    n = len(risk_assets)
+    n = len(assets)
     asset_list = "("
     for i in range(n - 1):
-        asset_list = asset_list + "'" + risk_assets[i] + "' ,"
+        asset_list = asset_list + "'" + assets[i] + "' ,"
 
-    asset_list = asset_list + "'" + risk_assets[n - 1] + "')"
-    selectCommand = "SELECT TICKER_SYMBOL, TRADE_DATE, CLOSE_INDEX " \
-                    "FROM datayesdb.mkt_idxd " \
+    asset_list = asset_list + "'" + assets[n - 1] + "')"
+    selectCommand = "SELECT TICKER_SYMBOL, TRADE_DATE, " + data_type + \
+                    " FROM datayesdb.mkt_idxd " \
                     "where ticker_symbol in " + asset_list + " and trade_date >= '" + start_date + "' and trade_date <= '" + end_date + "';"
     cursor.execute(selectCommand)
     index_data = cursor.fetchall()
-    index_data = pd.DataFrame(data=list(index_data), columns=["index", "trade_date", "close_index"])
-    index_data = index_data.pivot(index="trade_date", columns="index", values="close_index")
+    index_data = pd.DataFrame(data=list(index_data), columns=["index", "trade_date", data_type])
+    index_data = index_data.pivot(index="trade_date", columns="index", values=data_type)
     index_data = index_data.dropna(how="any")
 
-    for asset in risk_assets:
+    for asset in assets:
         index_data[asset] = index_data[asset].astype(np.double)
 
     db.close()
@@ -144,7 +140,7 @@ def getExpectedReturn(return_data, **kwargs):
         expected_return = pd.DataFrame(dict(zip(return_data.columns, gmean(return_data + 1.) ** 52 - 1.)), index=[0], columns=return_data.columns)
     return expected_return
 
-# 计算年化协方差矩阵
+#计算年化协方差矩阵
 def getCovarianceMatrix(return_data, **kwargs):
     freq = 'Day'
     if "freq" in kwargs.keys():
@@ -156,7 +152,7 @@ def getCovarianceMatrix(return_data, **kwargs):
         covariance_matrix = return_data.cov() * 52.
     return covariance_matrix
 
-# 年化波动率
+#年化波动率
 def getAnnualizedVolatility(return_data):
     annualized_volatility = pd.DataFrame(return_data.std() * np.sqrt(250))
     return annualized_volatility

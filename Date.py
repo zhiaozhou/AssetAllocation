@@ -71,7 +71,7 @@ def generateAdjustDate(start_date, end_date, **kwargs):
     cursor = db.cursor()
     selectCommand = "SELECT distinct(MONTH_END_DATE) " \
                     "from md_trade_cal " \
-                    "where EXCHANGE_CD='XSHG' and IS_OPEN=1 and CALENDAR_DATE >= '" + start_date + "' and CALENDAR_DATE <= '" + end_date + "';"
+                    "where EXCHANGE_CD='XSHG' and IS_OPEN=1 and CALENDAR_DATE >= '" + start_date + "' and CALENDAR_DATE <= '" + end_date + "' and MONTH_END_DATE <= '" + end_date + "';"
     cursor.execute(selectCommand)
     month_end_date = cursor.fetchall()
     month_end_date = pd.DataFrame(data=list(month_end_date), columns=["date"])

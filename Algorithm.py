@@ -10,7 +10,9 @@ def getCombinedIndex(assets, start_date, end_date, **kwargs):
     #计算动量因子
     momentum = getMomentum(monthly_return_data)
     #计算波动率因子
-    volatility = getAnnualizedVolatility(daily_return_data)
+    #volatility = getAnnualizedVolatility(daily_return_data)
+    volatility = pd.DataFrame(empyrical.downside_risk(daily_return_data, required_return=0, period='daily'))
+
     #计算相关性因子
     corr_factor = getCorrelationFactor(daily_return_data)
 
@@ -20,6 +22,48 @@ def getCombinedIndex(assets, start_date, end_date, **kwargs):
     corr_factor_rank = getRank(corr_factor, True)
 
     combined_index = momentum_rank + 0.5 * volatility_rank + 0.5 * corr_factor_rank
+    #combined_index = momentum_rank + 0.25 * volatility_rank + 0.25 * corr_factor_rank
+
+    #过滤掉动量因子为负的资产
+    positive_momentum_asset = []
+    for asset in momentum.index:
+        if momentum.loc[asset, 0] > 0:
+            positive_momentum_asset.append(asset)
+
+    if 'bond' in kwargs.keys():
+        bond_assets = kwargs['bond']
+        for bond_asset in bond_assets:
+            if bond_asset not in positive_momentum_asset:
+                positive_momentum_asset.append(bond_asset)
+
+    combined_index = combined_index.loc[positive_momentum_asset]
+
+    return combined_index
+
+#测试思路，用下行风险替代波动率，不采用因子排名加权，而直接用因子值加权
+def getCombinedIndex2(assets, start_date, end_date, **kwargs):
+    daily_return_data = getDailyReturnData(assets, start_date, end_date)
+    monthly_index_data = getMonthlyIndexData(assets, start_date, end_date)
+    monthly_return_data = getMonthlyReturnData(monthly_index_data)
+
+    momentum = getMomentum(monthly_return_data)
+    #计算动量因子
+    annual_return = pd.DataFrame(empyrical.annual_return(daily_return_data, period='daily'))
+    #计算波动率因子
+    #volatility = getAnnualizedVolatility(daily_return_data)
+    downside_risk = pd.DataFrame(empyrical.downside_risk(daily_return_data, required_return=0, period='daily'))
+
+    #计算相关性因子
+    corr_factor = getCorrelationFactor(daily_return_data)
+
+    #计算资产的三因子排名
+    #momentum_rank = getRank(momentum, False)
+    #volatility_rank = getRank(volatility, True)
+    #corr_factor_rank = getRank(corr_factor, True)
+
+    #combined_index = momentum_rank + 0.5 * volatility_rank + 0.5 * corr_factor_rank
+    #combined_index = momentum_rank + 0.25 * volatility_rank + 0.25 * corr_factor_rank
+    combined_index = annual_return - downside_risk - 0.25 * corr_factor
 
     #过滤掉动量因子为负的资产
     positive_momentum_asset = []
@@ -39,7 +83,10 @@ def getCombinedIndex(assets, start_date, end_date, **kwargs):
 
 #按照安信三因子合成因子计算资产风险预算
 def getRiskBudget(combined_index, **kwargs):
-    index_rank = getRank(combined_index, True)
+    sort_direction = True
+    if "sort_direction" in kwargs.keys():
+        sort_direction = kwargs["sort_direction"]
+    index_rank = getRank(combined_index, sort_direction)
     assets = list(index_rank.index)
     N = len(assets)
     sum = 0
