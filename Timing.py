@@ -50,6 +50,20 @@ def getMA(asset, date, M):
     close_index = getDailyIndexData([asset], prev_date, date, "CLOSE_INDEX")
     return close_index.mean(axis=0).values[0]
 
+def findLongShortDecisions(long_short_flag):
+    dates = list(long_short_flag.index)
+    n = len(dates)
+    '''
+    for i in range(n):
+        dates[i] = dates[i].strftime("%Y-%m-%d")
+    '''
+    decisions = dict()
+    for i in range(1, n):
+        if long_short_flag.iloc[i, 0] != long_short_flag.iloc[i - 1, 0]:
+            decisions[dates[i - 1]] = long_short_flag.iloc[i, 0]
+    return decisions
+
+
 
 
 

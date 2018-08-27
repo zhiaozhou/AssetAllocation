@@ -2,7 +2,7 @@ from Predict import *
 import empyrical
 
 #安信三因子合成，新因子=动量因子 + 波动率因子 * 0.5 + 相关性因子 * 0.5
-def getCombinedIndex(assets, start_date, end_date, **kwargs):
+def getCombinedIndex(assets, start_date, end_date, factor_weight, **kwargs):
     daily_return_data = getDailyReturnData(assets, start_date, end_date)
     monthly_index_data = getMonthlyIndexData(assets, start_date, end_date)
     monthly_return_data = getMonthlyReturnData(monthly_index_data)
@@ -21,7 +21,7 @@ def getCombinedIndex(assets, start_date, end_date, **kwargs):
     volatility_rank = getRank(volatility, True)
     corr_factor_rank = getRank(corr_factor, True)
 
-    combined_index = momentum_rank + 0.5 * volatility_rank + 0.5 * corr_factor_rank
+    combined_index = factor_weight["momentum"] * momentum_rank + factor_weight["volatility"] * volatility_rank + factor_weight["corr"] * corr_factor_rank
     #combined_index = momentum_rank + 0.25 * volatility_rank + 0.25 * corr_factor_rank
 
     #过滤掉动量因子为负的资产
@@ -95,7 +95,8 @@ def getRiskBudget(combined_index, **kwargs):
     risk_budget = dict()
 
     for asset in assets:
-        risk_budget[asset] = (N - index_rank.loc[asset] + 1) / sum
+        #risk_budget[asset] = (N - index_rank.loc[asset] + 1) / sum
+        risk_budget[asset] = (N - index_rank.loc[asset, 0] + 1) / sum
 
     if "type" in kwargs.keys():
         type = kwargs["type"]

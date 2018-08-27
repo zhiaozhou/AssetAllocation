@@ -36,6 +36,7 @@ def getDailyReturnData(assets, start_date, end_date, **kwargs):
     return_data = pd.DataFrame(data=list(return_data), columns=["index", "trade_date", "return"])
     return_data = return_data.pivot(index="trade_date", columns="index", values="return")
     return_data = return_data.dropna(how="any")
+    #return_data.fillna(value = 0, inplace=True)
 
     for asset in risk_assets:
         return_data[asset] = return_data[asset].astype(np.double)

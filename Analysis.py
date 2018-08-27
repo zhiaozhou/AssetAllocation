@@ -9,7 +9,7 @@ import matplotlib.dates as mdates
 from Date import *
 from Predict import *
 
-def drawValueCurve(df, filename):
+def drawValueCurve(df, filename, **kwargs):
     columns = df.columns
     index = list(df.index)
 
@@ -24,8 +24,15 @@ def drawValueCurve(df, filename):
     mpl.rcParams["font.sans-serif"] = ["Microsoft YaHei"]  # 用来正常显示中文标签
     fig = plt.figure()
 
+    if "fmt" in kwargs.keys():
+        fmt = kwargs["fmt"]
+
     for x in columns:
-        plt.plot_date(index, df[x].values, "", xdate=True, ydate=False, label=x)
+        #plt.plot_date(index, df[x].values, "", xdate=True, ydate=False, label=x)
+        if "fmt" in kwargs.keys():
+            plt.plot_date(index, df[x].values, fmt=fmt[x], xdate=True, ydate=False, label=x)
+        else:
+            plt.plot_date(index, df[x].values, "", xdate=True, ydate=False, label=x)
 
     plt.xticks(xticks)
     ax = plt.gca()
@@ -34,7 +41,7 @@ def drawValueCurve(df, filename):
     plt.legend()
     fig.autofmt_xdate()
     plt.savefig(filename)
-    #plt.show()
+    plt.show()
     return plt.gcf()
 
 def getNonCumReturn(return_data):
@@ -106,15 +113,15 @@ def portfolioAnalysis(return_data):
     #计算夏普比率：
     sharpe_ratio = empyrical.sharpe_ratio(non_cum_return, risk_free=math.pow(1 + 0.03, 1/250) - 1, period='daily')
     #分年统计
-    #aggr_returns = empyrical.aggregate_returns(non_cum_return, convert_to="yearly")
+    aggr_returns = empyrical.aggregate_returns(non_cum_return, convert_to="yearly")
 
 
     print("年化收益：%f" %(annual_return))
     print("年化波动率：%f" %(annual_volatility))
     print("最大回撤：%f" %(max_drawdown))
     print("夏普比率：%f" %(sharpe_ratio))
-    #print("分年统计收益率：")
-    #print(aggr_returns)
+    print("分年统计收益率：")
+    print(aggr_returns)
     data = [annual_return, annual_volatility, max_drawdown, sharpe_ratio]
     return pd.Series(data, index=["年化收益率", "年化波动率", "最大回撤", "夏普比率"])
 

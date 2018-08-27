@@ -5,8 +5,8 @@ from Utility import *
 #assets = ["DY0001", "H11001", "NHCI"]
 #assets = ["000300", "000905", "CBA00601", "CBA02001", "NHAU", "NHAI", "NHMI", "NHECI"]
 
-
 assets = ["DY0001", "H11001", "NHCI", "HSI", "SPX", "NHAU"]
+
 
 es_target = dict()
 es_target["DY0001"] = 0.1
@@ -16,16 +16,30 @@ es_target["HSI"] = 0.06
 es_target["SPX"] = 0.06
 es_target["NHAU"] = 0.06
 
+
+
 bond_assets = ["H11001"]
+
+factor_weight = dict()
+factor_weight["momentum"] = 1.0
+factor_weight["volatility"] = 0.25
+factor_weight["corr"] = 0.25
+
+asset_weight_cap = dict()
+asset_weight_cap["H11001"] = 0.2
 
 #加载沪深300择时
 long_short_flag = pd.read_excel("全A择时.xls")
 
 
-portfolio_return, weights_record, risk_budget_record = backtest6(assets, "2013-05-01", "2018-04-30", es_target, bond_assets, 3, long_short_flag)
+#portfolio_return, weights_record, risk_budget_record = backtest4(assets, "2013-05-01", "2014-04-30", es_target, bond_assets, 3)
+portfolio_return, weights_record, risk_budget_record, weights_record_daily = aggresiveStrategy(assets, "2016-05-01", "2018-04-30", factor_weight, es_target, asset_weight_cap,
+                                                                         bond_assets, 3, long_short_flag)
 save(portfolio_return, "portfolio_return.xls")
 save(weights_record, "weights_record.xls")
 save(risk_budget_record, "risk_budget_record.xls")
+save(weights_record_daily, "weights_record_daily.xls")
+
 
 
 portfolio_return = pd.read_excel("portfolio_return.xls", sheetname="Sheet1")
@@ -50,6 +64,7 @@ print("策略统计数据：")
 portfolio_analysis = portfolioAnalysis(portfolio_return)
 print("基准统计数据：")
 benchmark_analysis = portfolioAnalysis(benchmark)
+
 
 '''
 index_data = getDailyReturnData(assets, period_start_time, period_end_time)
