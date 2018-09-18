@@ -5,7 +5,7 @@ import pandas as pd
 def tDaysBackwardOffset(date, n):
     if n < 1:
         return ""
-    db = pymysql.connect("172.16.125.111", "reader", "reader", "datayesdb", 3313)
+    db = pymysql.connect("172.16.125.32", "reader", "reader", "datayesdb", 3313)
     cursor = db.cursor()
     selectCommand = "SELECT CALENDAR_DATE " \
                     "from md_trade_cal " \
@@ -22,7 +22,7 @@ def tDaysBackwardOffset(date, n):
 def tDaysForwardOffset(date, n):
     if n < 1:
         return ""
-    db = pymysql.connect("172.16.125.111", "reader", "reader", "datayesdb", 3313)
+    db = pymysql.connect("172.16.125.32", "reader", "reader", "datayesdb", 3313)
     cursor = db.cursor()
     selectCommand = "SELECT CALENDAR_DATE " \
                     "from md_trade_cal " \
@@ -37,7 +37,7 @@ def tDaysForwardOffset(date, n):
 
 #查询该日期所在月份第一个交易日
 def tMonthStartDate(date):
-    db = pymysql.connect("172.16.125.111", "reader", "reader", "datayesdb", 3313)
+    db = pymysql.connect("172.16.125.32", "reader", "reader", "datayesdb", 3313)
     cursor = db.cursor()
     selectCommand = "SELECT MONTH_START_DATE " \
                     "from md_trade_cal " \
@@ -50,7 +50,7 @@ def tMonthStartDate(date):
 
 #查询该日期前一个交易日的日期
 def tPrevTradeDate(date):
-    db = pymysql.connect("172.16.125.111", "reader", "reader", "datayesdb", 3313)
+    db = pymysql.connect("172.16.125.32", "reader", "reader", "datayesdb", 3313)
     cursor = db.cursor()
     selectCommand = "SELECT PREV_TRADE_DATE " \
                     "from md_trade_cal " \
@@ -67,7 +67,7 @@ def generateAdjustDate(start_date, end_date, **kwargs):
     setup_date = tPrevTradeDate(month_start_date)
     adjust_dates.append(setup_date)
 
-    db = pymysql.connect("172.16.125.111", "reader", "reader", "datayesdb", 3313)
+    db = pymysql.connect("172.16.125.32", "reader", "reader", "datayesdb", 3313)
     cursor = db.cursor()
     selectCommand = "SELECT distinct(MONTH_END_DATE) " \
                     "from md_trade_cal " \

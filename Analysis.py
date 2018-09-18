@@ -137,6 +137,22 @@ def indexAnalysis(index_data):
 
     return pd.DataFrame(data, index=["年化收益率", "年化波动率", "最大回撤", "夏普比率"], columns=assets)
 
+def plotWeights(assets, weight):
+    fig = plt.figure()
+    ax = fig.gca()
+    index = np.arange(len(assets))
+    bar_width = 0.35
+
+    mpl.rcParams["font.sans-serif"] = ["Microsoft YaHei"]  # 用来正常显示中文标签
+    plt.ylim(0.0, 1.0)
+    ax.bar(index, weight, bar_width, color = 'b', align='center')
+    ax.set_ylabel("权重")
+    ax.set_xticks(index)
+    ax.set_xticklabels(assets)
+    fig.tight_layout()
+    plt.show()
+
+
 
 
 

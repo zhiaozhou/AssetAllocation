@@ -31,6 +31,7 @@ def RSRSBackTest(asset, start_date, end_date, N, M):
     long_short_flag.iloc[0] = prev_decision
 
     for i in range(1, n, 1):
+        #当天的多空标志沿用前一天收市后的判断，当天产生的多空标志用于下一天
         long_short_flag.iloc[i] = prev_decision
         if RSRS.iloc[i] > 0.7 and prev_decision == 0:
 

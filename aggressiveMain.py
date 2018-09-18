@@ -6,6 +6,9 @@ from Utility import *
 #assets = ["000300", "000905", "CBA00601", "CBA02001", "NHAU", "NHAI", "NHMI", "NHECI"]
 
 assets = ["DY0001", "H11001", "NHCI", "HSI", "SPX", "NHAU"]
+funds = dict()
+funds["DY0001"] = 10001137
+funds["H11001"] = 10000073
 
 
 es_target = dict()

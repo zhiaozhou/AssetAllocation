@@ -202,7 +202,7 @@ def getMinimumRiskPortfolio(expected_return, covariance_matrix, **kwargs):
 
     return weights_dict
 
-def getRiskBugetPortfolio(risk_budget, covariance_matrix):
+def getRiskBugetPortfolio(risk_budget, covariance_matrix, **kwargs):
     def func(x):
         covariance_matrix_ = matrix(covariance_matrix.values)
         tmp = (covariance_matrix_ * np.matrix(x).T).A1
@@ -214,14 +214,17 @@ def getRiskBugetPortfolio(risk_budget, covariance_matrix):
         for i in range(n):
             for j in range(n):
                 delta_risk += (risk_budget_[j] * risk_contribution[i] - risk_budget_[i] * risk_contribution[j]) ** 2
-        return delta_risk
+        return delta_risk / 2
 
 
     #设置初始值为等权重
     x0 = np.ones(covariance_matrix.shape[0]) / covariance_matrix.shape[0]
 
     #设置各大类资产上下限
-    bnds = tuple((0.0, 1.0) for x in x0)
+    if "bnds" not in kwargs.keys():
+        bnds = tuple((0.0, 1.0) for x in x0)
+    else:
+        bnds = kwargs["bnds"]
 
     #设置限制条件，权重相加等于1
     cons = ({'type' : 'eq', 'fun' : lambda x : sum(x) - 1})
