@@ -1,54 +1,12 @@
-import pymysql
-import pandas as pd
-import numpy as np
+
 from scipy.stats.mstats import gmean
-import matplotlib.pyplot as plt
-import math
 from Optimizer import *
-import datetime
 from Date import *
-
-#取指数日涨跌幅
-def getDailyReturnData(assets, start_date, end_date, **kwargs):
-    # 连接通联mysql数据库
-    db = pymysql.connect("172.16.125.32", "reader", "reader", "datayesdb", 3313)
-    cursor = db.cursor()
-
-    risk_free_rate = 0.03
-    if 'risk_free_rate' in kwargs.keys():
-        risk_free_rate = kwargs['risk_free_rate']
-
-    risk_assets = assets.copy()
-    if "CASH" in risk_assets:
-        risk_assets.remove("CASH")
-
-    n = len(risk_assets)
-    asset_list = "("
-    for i in range(n - 1):
-        asset_list = asset_list + "'" + risk_assets[i] + "' ,"
-
-    asset_list = asset_list + "'" + risk_assets[n - 1] + "')"
-    selectCommand = "SELECT TICKER_SYMBOL, TRADE_DATE, CHG_PCT " \
-                    "FROM datayesdb.mkt_idxd " \
-                    "where ticker_symbol in " + asset_list + " and trade_date >= '" + start_date + "' and trade_date <= '" + end_date + "';"
-    cursor.execute(selectCommand)
-    return_data = cursor.fetchall()
-    return_data = pd.DataFrame(data=list(return_data), columns=["index", "trade_date", "return"])
-    return_data = return_data.pivot(index="trade_date", columns="index", values="return")
-    return_data = return_data.dropna(how="any")
-    #return_data.fillna(value = 0, inplace=True)
-
-    for asset in risk_assets:
-        return_data[asset] = return_data[asset].astype(np.double)
-
-    if "CASH" in assets:
-        return_data["CASH"] = math.pow(1 + risk_free_rate, 1/250) - 1
-
-    db.close()
-    return return_data
+import empyrical
 
 #取指数日线级别数据，包括收盘价：CLOSE_INDEX，最高价：HIGHEST_INDEX，最低价：LOWEST_INDEX，涨跌幅：CHG_PCT
-def getDailyIndexData(assets, start_date, end_date, data_type):
+#mode = 0: 删除none数据， mode = 1: 替换none数据为0
+def getDailyIndexData(assets, start_date, end_date, data_type, **kwargs):
     # 连接通联mysql数据库
     db = pymysql.connect("172.16.125.32", "reader", "reader", "datayesdb", 3313)
     cursor = db.cursor()
@@ -66,7 +24,14 @@ def getDailyIndexData(assets, start_date, end_date, data_type):
     index_data = cursor.fetchall()
     index_data = pd.DataFrame(data=list(index_data), columns=["index", "trade_date", data_type])
     index_data = index_data.pivot(index="trade_date", columns="index", values=data_type)
-    index_data = index_data.dropna(how="any")
+    if "mode" not in kwargs.keys():
+        index_data = index_data.dropna(how="any")
+    else:
+        mode = kwargs["mode"]
+        if mode == 0:
+            index_data = index_data.dropna(how="any")
+        else:
+            index_data = index_data.fillna(value=0)
 
     for asset in assets:
         index_data[asset] = index_data[asset].astype(np.double)
@@ -74,8 +39,18 @@ def getDailyIndexData(assets, start_date, end_date, data_type):
     db.close()
     return index_data
 
+#根据日收益率计算资产的净值
+def getAssetReturn(assets, start_date, end_date):
+    chg_pct = getDailyIndexData(assets, start_date, end_date, "CHG_PCT", mode = 1)
+    cum_return = dict()
+    for asset in assets:
+        cum_return[asset] = empyrical.cum_returns(chg_pct.loc[:, asset], starting_value=1.0)
+
+    cum_return = pd.DataFrame(data=cum_return)
+    return cum_return
+
 #获取基金日数据, 包括赋权后净值：ADJ_NAV, 回报率：RETURN_RATE
-def getFundData(funds, start_date, end_date, data_type):
+def getDailyFundData(funds, start_date, end_date, data_type, **kwargs):
     # 连接通联mysql数据库
     db = pymysql.connect("172.16.125.32", "reader", "reader", "datayesdb", 3313)
     cursor = db.cursor()
@@ -93,7 +68,15 @@ def getFundData(funds, start_date, end_date, data_type):
     fund_data = cursor.fetchall()
     fund_data = pd.DataFrame(data=list(fund_data), columns=["index", "trade_date", data_type])
     fund_data = fund_data.pivot(index="trade_date", columns="index", values=data_type)
-    fund_data = fund_data.dropna(how="any")
+    if "mode" not in kwargs.keys():
+        fund_data = fund_data.dropna(how="any")
+    else:
+        mode = kwargs["mode"]
+        if mode == 0:
+            fund_data = fund_data.dropna(how="any")
+        else:
+            fund_data = fund_data.fillna(value=0)
+
 
     for fund in funds:
         fund_data[fund] = fund_data[fund].astype(np.double)
@@ -105,6 +88,43 @@ def getFundData(funds, start_date, end_date, data_type):
 #取指数月收盘价，取出的月收盘价包括start_date前一个月的收盘价
 def getMonthlyIndexData(assets, start_date, end_date):
     month_end_dates = generateAdjustDate(start_date, end_date)
+    # 连接通联mysql数据库
+    db = pymysql.connect("172.16.125.32", "reader", "reader", "datayesdb", 3313)
+    cursor = db.cursor()
+
+    risk_assets = assets.copy()
+    if "CASH" in risk_assets:
+        risk_assets.remove("CASH")
+
+    n_asset = len(risk_assets)
+    asset_list = "("
+    for i in range(n_asset - 1):
+        asset_list = asset_list + "'" + risk_assets[i] + "' ,"
+    asset_list = asset_list + "'" + risk_assets[n_asset - 1] + "')"
+
+    n_month = len(month_end_dates)
+    month_end_date_list = "("
+    for i in range(n_month - 1):
+        month_end_date_list = month_end_date_list + "'" + month_end_dates[i] + "' ,"
+    month_end_date_list = month_end_date_list + "'" + month_end_dates[n_month - 1] + "')"
+
+    selectCommand = "SELECT TICKER_SYMBOL, TRADE_DATE, CLOSE_INDEX " \
+                    "FROM datayesdb.mkt_idxd " \
+                    "where ticker_symbol in " + asset_list + " and trade_date in " + month_end_date_list + ";"
+
+    cursor.execute(selectCommand)
+    index_data = cursor.fetchall()
+    index_data = pd.DataFrame(data=list(index_data), columns=["index", "trade_date", "close_index"])
+    index_data = index_data.pivot(index="trade_date", columns="index", values="close_index")
+    index_data = index_data.dropna(how="any")
+
+    for asset in risk_assets:
+        index_data[asset] = index_data[asset].astype(np.double)
+
+    db.close()
+    return index_data
+
+def getMonthlyIndexData(assets, month_end_dates):
     # 连接通联mysql数据库
     db = pymysql.connect("172.16.125.32", "reader", "reader", "datayesdb", 3313)
     cursor = db.cursor()

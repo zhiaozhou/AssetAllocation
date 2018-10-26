@@ -1,7 +1,6 @@
 from Predict import *
 import numpy as np
 from sklearn import linear_model
-import matplotlib.pyplot as plt
 from Date import *
 
 def getSlopeSeries(asset, start_date, end_date, N):
@@ -62,6 +61,10 @@ def findLongShortDecisions(long_short_flag):
         if long_short_flag.iloc[i, 0] != long_short_flag.iloc[i - 1, 0]:
             decisions[dates[i - 1]] = long_short_flag.iloc[i, 0]
     return decisions
+
+#####################################################################
+#以下策略为Faber美股择时策略
+
 
 
 

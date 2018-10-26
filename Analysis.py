@@ -1,18 +1,19 @@
 # -*- coding: utf-8 -*-
-import pandas as pd
-import numpy as np
-import matplotlib.pyplot as plt
-import empyrical
-from datetime import datetime
 import matplotlib as mpl
+import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
-from Date import *
-from Predict import *
+import datetime
+from Date import generateAdjustDate
+import numpy as np
+import pandas as pd
+import empyrical
+import math
 
-def drawValueCurve(df, filename, **kwargs):
+def drawValueCurve(df, **kwargs):
     columns = df.columns
     index = list(df.index)
 
+    #生成横坐标日期
     start_date = datetime.datetime.strftime(index[0], "%Y-%m-%d")
     end_date = datetime.datetime.strftime(index[-1], "%Y-%m-%d")
     adjust_dates = generateAdjustDate(start_date, end_date, step=3)
@@ -22,7 +23,7 @@ def drawValueCurve(df, filename, **kwargs):
         xticks.append(datetime.datetime.strptime(adjust_date, "%Y-%m-%d"))
 
     mpl.rcParams["font.sans-serif"] = ["Microsoft YaHei"]  # 用来正常显示中文标签
-    fig = plt.figure()
+    fig = plt.figure(figsize=(16, 9))
 
     if "fmt" in kwargs.keys():
         fmt = kwargs["fmt"]
@@ -32,7 +33,7 @@ def drawValueCurve(df, filename, **kwargs):
         if "fmt" in kwargs.keys():
             plt.plot_date(index, df[x].values, fmt=fmt[x], xdate=True, ydate=False, label=x)
         else:
-            plt.plot_date(index, df[x].values, "", xdate=True, ydate=False, label=x)
+            plt.plot_date(index, df[x].values, "-", xdate=True, ydate=False, label=x)
 
     plt.xticks(xticks)
     ax = plt.gca()
@@ -40,8 +41,10 @@ def drawValueCurve(df, filename, **kwargs):
 
     plt.legend()
     fig.autofmt_xdate()
-    plt.savefig(filename)
-    plt.show()
+    if "filename" in kwargs.keys():
+        plt.savefig(kwargs["filename"])
+    if "show" in kwargs.keys() and kwargs["show"] == True:
+        plt.show()
     return plt.gcf()
 
 def getNonCumReturn(return_data):
@@ -65,16 +68,8 @@ def getAssetReturn(assets, start_date, end_date):
     return close_index
 '''
 
-def getAssetReturn(assets, start_date, end_date):
-    chg_pct = getDailyIndexData(assets, start_date, end_date, "CHG_PCT")
-    cum_return = dict()
-    for asset in assets:
-        cum_return[asset] = empyrical.cum_returns(chg_pct.loc[:, asset], starting_value=1.0)
 
-    cum_return = pd.DataFrame(data=cum_return)
-    return cum_return
-
-
+'''
 def getPreCloseIndex(assets, date):
     # 连接通联mysql数据库
     db = pymysql.connect("172.16.125.111", "reader", "reader", "datayesdb", 3313)
@@ -101,6 +96,7 @@ def getPreCloseIndex(assets, date):
 
     db.close()
     return pre_close_index
+'''
 
 def portfolioAnalysis(return_data):
     non_cum_return = getNonCumReturn(return_data)
