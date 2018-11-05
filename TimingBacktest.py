@@ -22,7 +22,7 @@ def RSRSBackTest(asset, start_date, end_date, N, M):
 
     RSRS = pd.Series(data=RSRS, index=list(slope.index)[M - 1 :], name="RSRS")
     n = len(RSRS)
-    long_short_flag = pd.Series(data = np.zeros(n), index=RSRS.index, name="long_short_flag")
+    long_short_flag = pd.Series(data = np.zeros(n), index=chg_pct.index, name="long_short_flag")
     trade_dates = list(RSRS.index)
     long_decision_date = []
     short_decision_date = []
@@ -90,7 +90,7 @@ def FaberBackTest(asset, start_date, end_date):
         period_start_date = period_start_date.strftime("%Y-%m-%d")
         month_end_dates = generateAdjustDate2(period_start_date, adjust_date)
         month_end_dates.append(adjust_date)
-        monthly_index = getMonthlyIndexData([asset], month_end_dates)
+        monthly_index = getMonthlyIndexData2([asset], month_end_dates)
         monthly_average = monthly_index.mean().values[0]
         if monthly_index.iloc[-1, 0] >= monthly_average:
             flag = 1
@@ -107,16 +107,16 @@ def FaberBackTest(asset, start_date, end_date):
                 if i == 0:
                     long_decision_date.append(chg_pct.index[0])
                 else:
-                    long_decision_date.append(datetime.datetime.strptime(adjust_date, "%Y-%m-%d").date())
+                    long_decision_date.append(datetime.datetime.strptime(adjust_date, "%Y-%m-%d"))
             else:
                 if i == 0:
                     short_decision_date.append(chg_pct.index[0])
                 else:
-                    short_decision_date.append(datetime.datetime.strptime(adjust_date, "%Y-%m-%d").date())
+                    short_decision_date.append(datetime.datetime.strptime(adjust_date, "%Y-%m-%d"))
             prev_decision = flag
 
-        period_start_date = datetime.datetime.strptime(adjust_date, "%Y-%m-%d").date()
-        period_end_date = datetime.datetime.strptime(next_adjust_date, "%Y-%m-%d").date()
+        period_start_date = datetime.datetime.strptime(adjust_date, "%Y-%m-%d")
+        period_end_date = datetime.datetime.strptime(next_adjust_date, "%Y-%m-%d")
         long_short_flag[(long_short_flag.index > period_start_date) & (long_short_flag.index <= period_end_date)] = flag
 
     faber_chg_pct = np.zeros(N)
@@ -137,8 +137,8 @@ def FaberBackTest(asset, start_date, end_date):
     plt.savefig(asset + "择时.png")
     fig.show()
 
-    portfolioAnalysis(pd.DataFrame(return_data.iloc[:, 0]))
-    portfolioAnalysis(pd.DataFrame(return_data.iloc[:, 1]))
+    #portfolioAnalysis(pd.DataFrame(return_data.iloc[:, 0]))
+    #portfolioAnalysis(pd.DataFrame(return_data.iloc[:, 1]))
     return long_decision_date, short_decision_date, long_short_flag
 
 

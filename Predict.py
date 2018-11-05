@@ -23,6 +23,7 @@ def getDailyIndexData(assets, start_date, end_date, data_type, **kwargs):
     cursor.execute(selectCommand)
     index_data = cursor.fetchall()
     index_data = pd.DataFrame(data=list(index_data), columns=["index", "trade_date", data_type])
+    index_data["trade_date"] = pd.to_datetime(index_data["trade_date"])
     index_data = index_data.pivot(index="trade_date", columns="index", values=data_type)
     if "mode" not in kwargs.keys():
         index_data = index_data.dropna(how="any")
@@ -67,6 +68,7 @@ def getDailyFundData(funds, start_date, end_date, data_type, **kwargs):
     cursor.execute(selectCommand)
     fund_data = cursor.fetchall()
     fund_data = pd.DataFrame(data=list(fund_data), columns=["index", "trade_date", data_type])
+    fund_data["trade_date"] = pd.to_datetime(fund_data["trade_date"])
     fund_data = fund_data.pivot(index="trade_date", columns="index", values=data_type)
     if "mode" not in kwargs.keys():
         fund_data = fund_data.dropna(how="any")
@@ -84,6 +86,30 @@ def getDailyFundData(funds, start_date, end_date, data_type, **kwargs):
     db.close()
     return fund_data
 
+#取单只货币基金回报率
+def getDailyMoneyFundReturn(fund, start_date, end_date, **kwargs):
+    # 连接通联mysql数据库
+    db = pymysql.connect("172.16.125.32", "reader", "reader", "datayesdb", 3313)
+    cursor = db.cursor()
+    selectCommand = "SELECT SECURITY_ID, END_DATE, RETURN_RATE" \
+                    " FROM datayesdb.fund_return_rate " \
+                    "where security_id = " + str(fund) + " and end_date >= '" + start_date + "' and end_date <= '" + end_date + "';"
+    cursor.execute(selectCommand)
+    fund_data = cursor.fetchall()
+    fund_data = pd.DataFrame(data=list(fund_data), columns=["index", "trade_date", "return_rate"])
+    fund_data["trade_date"] = pd.to_datetime(fund_data["trade_date"])
+    fund_data = fund_data.pivot(index="trade_date", columns="index", values="return_rate")
+    if "mode" not in kwargs.keys():
+        fund_data = fund_data.dropna(how="any")
+    else:
+        mode = kwargs["mode"]
+        if mode == 0:
+            fund_data = fund_data.dropna(how="any")
+        else:
+            fund_data = fund_data.fillna(value=0)
+    fund_data[fund] = fund_data[fund].astype(np.double)
+    db.close()
+    return fund_data
 
 #取指数月收盘价，取出的月收盘价包括start_date前一个月的收盘价
 def getMonthlyIndexData(assets, start_date, end_date):
@@ -124,7 +150,7 @@ def getMonthlyIndexData(assets, start_date, end_date):
     db.close()
     return index_data
 
-def getMonthlyIndexData(assets, month_end_dates):
+def getMonthlyIndexData2(assets, month_end_dates):
     # 连接通联mysql数据库
     db = pymysql.connect("172.16.125.32", "reader", "reader", "datayesdb", 3313)
     cursor = db.cursor()

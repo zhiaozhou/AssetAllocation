@@ -62,8 +62,6 @@ def findLongShortDecisions(long_short_flag):
             decisions[dates[i - 1]] = long_short_flag.iloc[i, 0]
     return decisions
 
-#####################################################################
-#以下策略为Faber美股择时策略
 
 
 

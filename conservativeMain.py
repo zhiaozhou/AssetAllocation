@@ -1,7 +1,7 @@
 from Backtest import *
 from Analysis import *
 from Utility import *
-
+from TimingBacktest import *
 
 assets = ["000300", "H11001", "HSI", "SPX", "NHAU"]
 funds = dict()
@@ -22,6 +22,7 @@ es_target["NHAU"] = 0.06
 
 bond_assets = ["H11001"]
 ashare_asset = "000300"
+money_fund = 10002331
 
 factor_weight = dict()
 factor_weight["momentum"] = 1.0
@@ -34,10 +35,30 @@ asset_weight_cap["H11001"] = 0.6
 start_date = "2016-05-01"
 end_date = "2018-04-30"
 
-#加载沪深300择时
-long_short_flag = pd.read_excel("全A择时.xls")
+#生成A股择时信号
+try:
+    ashare_long_short_flag = pd.read_excel("全A择时.xls")
+    ashare_long_short_flag.set_index(keys='trade_date', inplace=True)
+except:
+    ashare_long_decision_date, ashare_short_decision_date,ashare_long_short_flag = RSRSBackTest("000300", start_date, end_date, 18, 600)
+    ashare_long_short_flag = pd.DataFrame(data=ashare_long_short_flag.values, index=ashare_long_short_flag.index, columns=["long_short_flag"])
+    save(ashare_long_short_flag, "全A择时.xls")
+
+#生成美股择时信号
+try:
+    ushare_long_short_flag = pd.read_excel("美股择时.xls")
+    ushare_long_short_flag.set_index(keys='trade_date', inplace=True)
+except:
+    ushare_long_decision_date, ushare_short_decision_date, ushare_long_short_flag = FaberBackTest("SPX", start_date, end_date)
+    ushare_long_short_flag = pd.DataFrame(data=ushare_long_short_flag.values, index=ushare_long_short_flag.index, columns=["long_short_flag"])
+    save(ushare_long_short_flag, "美股择时.xls")
+
+#portfolio_return, weights_record, risk_budget_record, weights_record_daily = conservativeStrategy(assets, start_date, end_date, factor_weight, es_target, asset_weight_cap,
+#                                                                         bond_assets, ashare_asset, 3, ashare_long_short_flag, ushare_long_short_flag, mode=0)
+
 portfolio_return, weights_record, risk_budget_record, weights_record_daily = conservativeStrategy(assets, start_date, end_date, factor_weight, es_target, asset_weight_cap,
-                                                                         bond_assets, ashare_asset, 3, long_short_flag, mode=1, funds=funds)
+                                                                         bond_assets, ashare_asset, 3, ashare_long_short_flag, ushare_long_short_flag, mode=1,
+                                                                         funds = funds, money_fund = money_fund)
 save(portfolio_return, "portfolio_return.xls")
 save(weights_record, "weights_record.xls")
 save(risk_budget_record, "risk_budget_record.xls")

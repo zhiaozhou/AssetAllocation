@@ -4,7 +4,7 @@ from Timing import *
 #ES调整后的安信三因子模型+沪深300择时
 #mode = 0: 以基准指数做回测 mode = 1: 以追踪指数的基金做回测，默认mode = 0
 #funds: 用于回测的基金与指数的对应关系字典
-def aggresiveStrategy(assets, start_date, end_date, factor_weight, es_target, asset_weight_cap, bond_assets, ashare_asset, step, long_short_flag, **kwargs):
+def aggresiveStrategy(assets, start_date, end_date, factor_weight, es_target, asset_weight_cap, bond_assets, ashare_asset, money_fund, step, ashare_long_short_flag, ushare_long_short_flag, **kwargs):
     adjust_dates = generateAdjustDate(start_date, end_date, step=step)
     portfolio_return = []
     weights_record = pd.DataFrame()
@@ -38,7 +38,6 @@ def aggresiveStrategy(assets, start_date, end_date, factor_weight, es_target, as
         for asset in assets:
             es[asset] = getExpectedShortfall(monthly_return_data.loc[:, asset], 0.95)
         weights = getESAdjustWeight(weights, es_target, es, bond_assets, 1)
-        #risk_budget = weights.copy()
 
 
         #如果债券的配比超过了上限，超过上限的部分按比例分配到其他非债券资产
@@ -74,10 +73,11 @@ def aggresiveStrategy(assets, start_date, end_date, factor_weight, es_target, as
             period_start_date = tDaysForwardOffset(adjust_date, 1)
             period_end_date = adjust_dates[i + 1]
 
-        if datetime.datetime.strptime(period_start_date, "%Y-%m-%d") > datetime.datetime.strptime(period_end_date, "%Y-%m-%d"):
+        if datetime.strptime(period_start_date, "%Y-%m-%d") > datetime.strptime(period_end_date, "%Y-%m-%d"):
             continue
 
-        if "mode" not in kwargs.keys():
+        #取指数或基金的日收益率
+        if "mode" not in kwargs.keys() or kwargs["mode"] == 0:
             return_data = getDailyIndexData(assets, period_start_date, period_end_date, "CHG_PCT", mode=1)
         else:
             if "funds" not in kwargs.keys():
@@ -85,64 +85,85 @@ def aggresiveStrategy(assets, start_date, end_date, factor_weight, es_target, as
                 exit(-1)
             else:
                 funds = kwargs["funds"]
+                #取指数基金的日收益率
                 return_data = getDailyFundData(list(funds.values()), period_start_date, period_end_date, "RETURN_RATE", mode=1)
+                #取货币基金的日收益率
+                money_fund_return = getDailyMoneyFundReturn(money_fund, start_date, end_date, mode=1)
+
         period = return_data.index
-        #记录前一天的配比
-        prev_weights_daily = weights.copy()
+
         for date in period:
             if len(portfolio_return) == 0:
                 prev_net_value = 1
             else:
                 prev_net_value = portfolio_return[-1][1]
             net_value = .0
-            try:
-                flag = long_short_flag.loc[date, "long_short_flag"]
-            except:
-                flag = -1
+            weights_daily = weights.copy()
 
-            #如果找不到当天的A股多空标志，则沿用前一天的配比
-            if flag == -1:
-                weights_daily = prev_weights_daily.copy()
+            #根据多空标志调整A股比例，看多A股的话，将债券的配比全部加到A股上，看空A股的话，把A股的占比全部加到其他权益类资产上
+            try:
+                flag = ashare_long_short_flag.loc[date, "long_short_flag"]
+            except:
+                flag = ashare_long_short_flag[ashare_long_short_flag.index < date].iloc[-1, 0]
+            if flag == 1:
+                total_bond_weight = 0
+                for bond_asset in bond_assets:
+                    total_bond_weight += weights[bond_asset]
+                    weights_daily[bond_asset] = 0
+                weights_daily[ashare_asset] += total_bond_weight
             else:
-            #根据多空标志调整A股比例，看多A股的话，将债券的配比全部加到A股上，看空A股的话，把A股的占比全部加到其他权益类
-            #资产上
-                weights_daily = weights.copy()
-                if flag == 1:
-                    total_bond_weight = 0
-                    for bond_asset in bond_assets:
-                        total_bond_weight += weights[bond_asset]
-                        weights_daily[bond_asset] = 0
-                    weights_daily[ashare_asset] += total_bond_weight
-                else:
-                    if weights[ashare_asset] > 0:
-                        spare_weight = weights[ashare_asset]
-                        weights_daily[ashare_asset] = 0
-                        equity_assets = [asset for asset in assets if asset not in bond_assets and asset != ashare_asset]
-                        equity_weight_sum = 0
+                if weights[ashare_asset] > 0:
+                    spare_weight = weights[ashare_asset]
+                    weights_daily[ashare_asset] = 0
+                    equity_assets = [asset for asset in assets if asset not in bond_assets and asset != ashare_asset]
+                    equity_weight_sum = 0
+                    for equity_asset in equity_assets:
+                        equity_weight_sum += weights[equity_asset]
+                    if equity_weight_sum > 0:
                         for equity_asset in equity_assets:
-                            equity_weight_sum += weights[equity_asset]
-                        if equity_weight_sum > 0:
-                            for equity_asset in equity_assets:
-                                weights_daily[equity_asset] += spare_weight * weights[equity_asset] / equity_weight_sum
-                        #如果其他权益类资产的初始权重均为0，则将A股的权重按比例分配到债券资产上
-                        else:
-                            total_bond_weight = 0
-                            for bond_asset in bond_assets:
-                                total_bond_weight += weights[bond_asset]
-                            for bond_asset in bond_assets:
-                                weights_daily[bond_asset] += spare_weight * weights[bond_asset] / total_bond_weight
+                            weights_daily[equity_asset] += spare_weight * weights[equity_asset] / equity_weight_sum
+                    #如果其他权益类资产的初始权重均为0，则将A股的权重按比例分配到债券资产上
+                    else:
+                        total_bond_weight = 0
+                        for bond_asset in bond_assets:
+                            total_bond_weight += weights[bond_asset]
+                        for bond_asset in bond_assets:
+                            weights_daily[bond_asset] += spare_weight * weights[bond_asset] / total_bond_weight
+
+            #根据美股多空标志调整美股和现金的比例,如果看空美股，调整美股的配比到货币基金
+            weights_daily["money"] = 0
+            try:
+                flag = ushare_long_short_flag.loc[date, "long_short_flag"]
+            except:
+                flag = ushare_long_short_flag[ushare_long_short_flag.index < date].iloc[-1, 0]
+
+            if flag == 0:
+                weights_daily["money"] = weights_daily["SPX"]
+                weights_daily["SPX"] = 0
 
             for asset in assets:
                 w = weights_daily[asset]
-                if "mode" not in kwargs.keys():
+                if "mode" not in kwargs.keys() or kwargs["mode"] == 0:
                     chg_pct = return_data.loc[date, asset]
                 else:
                     chg_pct = return_data.loc[date, funds[asset]]
                 net_value = net_value + prev_net_value * w * (1 + chg_pct)
 
+            #如果有货基的话，加上货基的收益率
+            if weights_daily["money"] > 0:
+                w = weights_daily["money"]
+                if "mode" not in kwargs.keys() or kwargs["mode"] == 0:
+                    chg_pct = math.pow(1 + 0.03, 1/250) - 1
+                else:
+                    try:
+                        chg_pct = money_fund_return.loc[date, money_fund]
+                    except:
+                        chg_pct = 0
+                net_value = net_value + prev_net_value * w * (1 + chg_pct)
+
             portfolio_return.append([date, net_value])
-            weights_record_daily = weights_record_daily.append(pd.DataFrame(data=weights_daily, index=[date], columns=assets))
-            prev_weights_daily = weights_daily.copy()
+            weights_record_daily = weights_record_daily.append(pd.DataFrame(data=weights_daily, index=[date], columns=weights_daily.keys()))
+
 
     portfolio_return = pd.DataFrame(data=portfolio_return, columns=["date", "portfolio"])
     portfolio_return.set_index("date", inplace=True)
@@ -156,7 +177,7 @@ def aggresiveStrategy(assets, start_date, end_date, factor_weight, es_target, as
     return portfolio_return, weights_record, weights_record_daily
 
 
-def neutralStrategy(assets, start_date, end_date, factor_weight, es_target, bond_assets, ashare_asset, step, long_short_flag, **kwargs):
+def neutralStrategy(assets, start_date, end_date, factor_weight, es_target, bond_assets, ashare_asset, step, ashare_long_short_flag, ushare_long_short_flag, **kwargs):
     adjust_dates = generateAdjustDate(start_date, end_date, step=step)
     portfolio_return = []
     weights_record = pd.DataFrame()
@@ -179,7 +200,6 @@ def neutralStrategy(assets, start_date, end_date, factor_weight, es_target, bond
         for asset in assets:
             if asset not in invest_assets:
                 weights[asset] = 0
-                #risk_budget[asset] = 0
 
 
         # ES调整权重
@@ -208,62 +228,91 @@ def neutralStrategy(assets, start_date, end_date, factor_weight, es_target, bond
             period_start_date = tDaysForwardOffset(adjust_date, 1)
             period_end_date = adjust_dates[i + 1]
 
-        if datetime.datetime.strptime(period_start_date, "%Y-%m-%d") > datetime.datetime.strptime(period_end_date, "%Y-%m-%d"):
+        if datetime.strptime(period_start_date, "%Y-%m-%d") > datetime.strptime(period_end_date, "%Y-%m-%d"):
             continue
 
-        if "mode" not in kwargs.keys():
+        if "mode" not in kwargs.keys() or kwargs["mode"] == 0:
             return_data = getDailyIndexData(assets, period_start_date, period_end_date, "CHG_PCT", mode=1)
         else:
             if "funds" not in kwargs.keys():
                 print("Please specify the funds to be used for backtest!")
                 exit(-1)
+            elif "money_fund" not in kwargs.keys():
+                print("Please specify the money market fund to be used for backtest")
+                exit(-1)
             else:
+                # 取指数基金的日收益率
                 funds = kwargs["funds"]
                 return_data = getDailyFundData(list(funds.values()), period_start_date, period_end_date, "RETURN_RATE", mode=1)
+                # 取货币基金的日收益率
+                money_fund = kwargs["money_fund"]
+                money_fund_return = getDailyMoneyFundReturn(money_fund, start_date, end_date, mode=1)
+
         period = return_data.index
-        prev_weights_daily = weights.copy()
         for date in period:
             if len(portfolio_return) == 0:
                 prev_net_value = 1
             else:
                 prev_net_value = portfolio_return[-1][1]
             net_value = .0
-            try:
-                flag = long_short_flag.loc[date, "long_short_flag"]
-            except:
-                flag = -1
+            weights_daily = weights.copy()
 
-            if flag == -1:
-                weights_daily = prev_weights_daily.copy()
+            #根据多空标志调整A股比例，看多A股的话，将债券的一半配比加到A股上，看空A股的话，把A股的占比全部加到债券资产上
+            try:
+                flag = ashare_long_short_flag.loc[date, "long_short_flag"]
+            except:
+                flag = ashare_long_short_flag[ashare_long_short_flag.index < date].iloc[-1, 0]
+
+            if flag == 1:
+                total_bond_weight = 0
+                for bond_asset in bond_assets:
+                    total_bond_weight += weights[bond_asset]
+                    weights_daily[bond_asset] = 0.5 * weights[bond_asset]
+                weights_daily[ashare_asset] += total_bond_weight * 0.5
             else:
-                #根据多空标志调整A股比例，看多A股的话，将债券的一半配比加到A股上，看空A股的话，把A股的占比全部加到债券资产上
-                weights_daily = weights.copy()
-                if flag == 1:
+                if weights[ashare_asset] > 0:
+                    spare_weight = weights[ashare_asset]
+                    weights_daily[ashare_asset] = 0
                     total_bond_weight = 0
                     for bond_asset in bond_assets:
                         total_bond_weight += weights[bond_asset]
-                        weights_daily[bond_asset] = 0.5 * weights[bond_asset]
-                    weights_daily[ashare_asset] += total_bond_weight * 0.5
-                else:
-                    if weights[ashare_asset] > 0:
-                        spare_weight = weights[ashare_asset]
-                        weights_daily[ashare_asset] = 0
-                        total_bond_weight = 0
-                        for bond_asset in bond_assets:
-                            total_bond_weight += weights[bond_asset]
-                        for bond_asset in bond_assets:
-                            weights_daily[bond_asset] += spare_weight * weights[bond_asset] / total_bond_weight
+                    for bond_asset in bond_assets:
+                        weights_daily[bond_asset] += spare_weight * weights[bond_asset] / total_bond_weight
+
+            # 根据美股多空标志调整美股和现金的比例,如果看空美股，调整美股的配比到货币基金
+            weights_daily["money"] = 0
+            try:
+                flag = ushare_long_short_flag.loc[date, "long_short_flag"]
+            except:
+                flag = ushare_long_short_flag[ushare_long_short_flag.index < date].iloc[-1, 0]
+
+            if flag == 0:
+                weights_daily["money"] = weights_daily["SPX"]
+                weights_daily["SPX"] = 0
 
             for asset in assets:
                 w = weights_daily[asset]
-                if "mode" not in kwargs.keys():
+                if "mode" not in kwargs.keys() or kwargs["mode"] == 0:
                     chg_pct = return_data.loc[date, asset]
                 else:
                     chg_pct = return_data.loc[date, funds[asset]]
                 net_value = net_value + prev_net_value * w * (1 + chg_pct)
+
+            # 如果有货基的话，加上货基的收益率
+            if weights_daily["money"] > 0:
+                w = weights_daily["money"]
+                if "mode" not in kwargs.keys() or kwargs["mode"] == 0:
+                    chg_pct = math.pow(1 + 0.03, 1 / 250) - 1
+                else:
+                    try:
+                        chg_pct = money_fund_return.loc[date, money_fund]
+                    except:
+                        chg_pct = 0
+                net_value = net_value + prev_net_value * w * (1 + chg_pct)
+
             portfolio_return.append([date, net_value])
-            weights_record_daily = weights_record_daily.append(pd.DataFrame(data=weights_daily, index=[date], columns=assets))
-            prev_weights_daily = weights_daily.copy()
+            weights_record_daily = weights_record_daily.append(pd.DataFrame(data=weights_daily, index=[date], columns=assets + ["money"]))
+
 
     portfolio_return = pd.DataFrame(data=portfolio_return, columns=["date", "portfolio"])
     portfolio_return.set_index("date", inplace=True)
@@ -276,7 +325,7 @@ def neutralStrategy(assets, start_date, end_date, factor_weight, es_target, bond
 
     return portfolio_return, weights_record, weights_record_daily
 
-def conservativeStrategy(assets, start_date, end_date, factor_weight, es_target, asset_weight_cap, bond_assets, ashare_asset, step, long_short_flag, **kwargs):
+def conservativeStrategy(assets, start_date, end_date, factor_weight, es_target, asset_weight_cap, bond_assets, ashare_asset, step, ashare_long_short_flag, ushare_long_short_flag, **kwargs):
     adjust_dates = generateAdjustDate(start_date, end_date, step=step)
     portfolio_return = []
     weights_record = pd.DataFrame()
@@ -344,35 +393,41 @@ def conservativeStrategy(assets, start_date, end_date, factor_weight, es_target,
             period_start_date = tDaysForwardOffset(adjust_date, 1)
             period_end_date = adjust_dates[i + 1]
 
-        if datetime.datetime.strptime(period_start_date, "%Y-%m-%d") > datetime.datetime.strptime(period_end_date,
-                                                                                                  "%Y-%m-%d"):
+        if datetime.strptime(period_start_date, "%Y-%m-%d") > datetime.strptime(period_end_date, "%Y-%m-%d"):
             continue
 
-        if "mode" not in kwargs.keys():
+        if "mode" not in kwargs.keys() or kwargs["mode"] == 0:
             return_data = getDailyIndexData(assets, period_start_date, period_end_date, "CHG_PCT", mode=1)
         else:
             if "funds" not in kwargs.keys():
                 print("Please specify the funds to be used for backtest!")
                 exit(-1)
+            elif "money_fund" not in kwargs.keys():
+                print("Please specify the money market fund to be used for backtest")
+                exit(-1)
             else:
+                # 取指数基金的日收益率
                 funds = kwargs["funds"]
                 return_data = getDailyFundData(list(funds.values()), period_start_date, period_end_date, "RETURN_RATE", mode=1)
+                # 取货币基金的日收益率
+                money_fund = kwargs["money_fund"]
+                money_fund_return = getDailyMoneyFundReturn(money_fund, start_date, end_date, mode=1)
         period = return_data.index
-        prev_weights_daily = weights.copy()
         for date in period:
             if len(portfolio_return) == 0:
                 prev_net_value = 1
             else:
                 prev_net_value = portfolio_return[-1][1]
             net_value = .0
+            weights_daily = weights.copy()
+
+            # 根据多空标志调整A股比例，看空A股的话，把A股的占比全部加到债券资产上
             try:
-                flag = long_short_flag.loc[date, "long_short_flag"]
+                flag = ashare_long_short_flag.loc[date, "long_short_flag"]
             except:
-                flag = -1
-            if flag == -1:
-                weights_daily = prev_weights_daily.copy()
-            else:
-                # 根据多空标志调整A股比例，看空A股的话，把A股的占比全部加到债券资产上
+                flag = ashare_long_short_flag[ashare_long_short_flag.index < date].iloc[-1, 0]
+
+            if flag == 0:
                 weights_daily = weights.copy()
                 if flag == 0:
                     if weights[ashare_asset] > 0:
@@ -384,17 +439,40 @@ def conservativeStrategy(assets, start_date, end_date, factor_weight, es_target,
                         for bond_asset in bond_assets:
                             weights_daily[bond_asset] += spare_weight * weights[bond_asset] / total_bond_weight
 
+            # 根据美股多空标志调整美股和现金的比例,如果看空美股，调整美股的配比到货币基金
+            weights_daily["money"] = 0
+            try:
+                flag = ushare_long_short_flag.loc[date, "long_short_flag"]
+            except:
+                flag = ushare_long_short_flag[ushare_long_short_flag.index < date].iloc[-1, 0]
+
+            if flag == 0:
+                weights_daily["money"] = weights_daily["SPX"]
+                weights_daily["SPX"] = 0
+
             for asset in assets:
                 w = weights_daily[asset]
-                if "mode" not in kwargs.keys():
+                if "mode" not in kwargs.keys() or kwargs["mode"] == 0:
                     chg_pct = return_data.loc[date, asset]
                 else:
                     chg_pct = return_data.loc[date, funds[asset]]
                 net_value = net_value + prev_net_value * w * (1 + chg_pct)
 
+            # 如果有货基的话，加上货基的收益率
+            if weights_daily["money"] > 0:
+                w = weights_daily["money"]
+                if "mode" not in kwargs.keys() or kwargs["mode"] == 0:
+                    chg_pct = math.pow(1 + 0.03, 1 / 250) - 1
+                else:
+                    try:
+                        chg_pct = money_fund_return.loc[date, money_fund]
+                    except:
+                        chg_pct = 0
+                net_value = net_value + prev_net_value * w * (1 + chg_pct)
+
             portfolio_return.append([date, net_value])
-            weights_record_daily = weights_record_daily.append(pd.DataFrame(data=weights_daily, index=[date], columns=assets))
-            prev_weights_daily = weights_daily.copy()
+            weights_record_daily = weights_record_daily.append(pd.DataFrame(data=weights_daily, index=[date], columns=assets + ["money"]))
+
 
     portfolio_return = pd.DataFrame(data=portfolio_return, columns=["date", "portfolio"])
     portfolio_return.set_index("date", inplace=True)
